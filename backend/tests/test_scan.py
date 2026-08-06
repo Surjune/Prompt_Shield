@@ -42,7 +42,71 @@ def test_scan_credit_card_dlp():
     assert response.status_code == 200
     data = response.json()
     assert data["action"] == "BLOCK"
-    assert any(v["category"] == "PII" for v in data["violations"])
+    assert any("PII" in v["category"] for v in data["violations"])
+
+def test_scan_bank_account_block():
+    """Bank account numbers must be intercepted, blocked with category [PII: Financial Data] and risk score 85."""
+    payload = {
+        "prompt": "Please transfer funds to account no: 98765432101234",
+        "platform": "ChatGPT",
+        "user_id": "test_user"
+    }
+    response = client.post("/api/v1/scan-prompt", json=payload, headers=HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] == "BLOCK"
+    assert data["risk_score"] == 85.0
+    bank_violation = next(v for v in data["violations"] if v["rule_id"] == "BANK_ACCOUNT")
+    assert bank_violation["category"] == "[PII: Financial Data]"
+    assert bank_violation["severity"] == "CRITICAL"
+
+def test_scan_openai_key_block():
+    """OpenAI API keys must be intercepted, blocked with category [CREDENTIAL: Secret Key] and risk score 95."""
+    payload = {
+        "prompt": "Here is my key sk-proj-1234567890abcdef1234567890abcdef1234",
+        "platform": "ChatGPT",
+        "user_id": "test_user"
+    }
+    response = client.post("/api/v1/scan-prompt", json=payload, headers=HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] == "BLOCK"
+    assert data["risk_score"] == 95.0
+    key_violation = next(v for v in data["violations"] if v["rule_id"] == "OPENAI_KEY")
+    assert key_violation["category"] == "[CREDENTIAL: Secret Key]"
+    assert key_violation["severity"] == "CRITICAL"
+
+def test_scan_google_api_key_block():
+    """Google API keys must be intercepted, blocked with category [CREDENTIAL: Secret Key] and risk score 95."""
+    payload = {
+        "prompt": "My Google key is AIzaSy123456789012345678901234567890123",
+        "platform": "Gemini",
+        "user_id": "test_user"
+    }
+    response = client.post("/api/v1/scan-prompt", json=payload, headers=HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] == "BLOCK"
+    assert data["risk_score"] == 95.0
+    key_violation = next(v for v in data["violations"] if v["rule_id"] == "GOOGLE_API_KEY")
+    assert key_violation["category"] == "[CREDENTIAL: Secret Key]"
+    assert key_violation["severity"] == "CRITICAL"
+
+def test_scan_aws_key_block():
+    """AWS Access Keys must be intercepted, blocked with category [CREDENTIAL: Secret Key] and risk score 95."""
+    payload = {
+        "prompt": "AWS key: AKIA1234567890ABCDEF",
+        "platform": "ChatGPT",
+        "user_id": "test_user"
+    }
+    response = client.post("/api/v1/scan-prompt", json=payload, headers=HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] == "BLOCK"
+    assert data["risk_score"] == 95.0
+    key_violation = next(v for v in data["violations"] if v["rule_id"] == "AWS_KEY")
+    assert key_violation["category"] == "[CREDENTIAL: Secret Key]"
+    assert key_violation["severity"] == "CRITICAL"
 
 def test_scan_prompt_injection():
     payload = {
@@ -96,7 +160,7 @@ def test_scan_phone_number_flag():
     response = client.post("/api/v1/scan-prompt", json=payload, headers=HEADERS)
     assert response.status_code == 200
     data = response.json()
-    # Phone is HIGH severity (score 55), redact threshold is 40 → should REDACT or BLOCK
     assert data["action"] in ("REDACT", "BLOCK"), f"Expected REDACT/BLOCK, got {data['action']}"
     assert any(v["rule_id"] == "PHONE_NUMBER" for v in data["violations"])
+
 

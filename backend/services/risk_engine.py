@@ -4,6 +4,15 @@ from backend.models.schemas import ThreatViolation
 from backend.models.db_models import SecurityPolicy
 from backend.config import settings
 
+RULE_RISK_WEIGHTS = {
+    "BANK_ACCOUNT": 85,
+    "OPENAI_KEY": 95,
+    "GOOGLE_API_KEY": 95,
+    "AWS_KEY": 95,
+    "GENERIC_SECRET": 95,
+    "RSA_PRIVATE_KEY": 95,
+}
+
 SEVERITY_WEIGHTS = {
     "LOW": 15,
     "MEDIUM": 30,
@@ -24,7 +33,7 @@ def calculate_risk(violations: List[ThreatViolation], db: Session) -> Tuple[floa
     policies = {p.rule_key: p for p in db.query(SecurityPolicy).all()} if db else {}
 
     for v in violations:
-        weight = SEVERITY_WEIGHTS.get(v.severity, 20)
+        weight = RULE_RISK_WEIGHTS.get(v.rule_id, SEVERITY_WEIGHTS.get(v.severity, 20))
         
         # Override with active policy setting if present
         rule_policy = policies.get(v.rule_id)
@@ -37,7 +46,7 @@ def calculate_risk(violations: List[ThreatViolation], db: Session) -> Tuple[floa
             elif rule_policy.action_on_trigger == "REDACT":
                 must_redact = True
 
-        base_score += weight
+        base_score = max(base_score, float(weight))
         if v.severity == "CRITICAL":
             must_block = True
 
