@@ -79,7 +79,7 @@ def test_scan_openai_key_block():
 def test_scan_google_api_key_block():
     """Google API keys must be intercepted, blocked with category [CREDENTIAL: Secret Key] and risk score 95."""
     payload = {
-        "prompt": "My Google key is AIzaSy123456789012345678901234567890123",
+        "prompt": "My Google key is *****************************************",
         "platform": "Gemini",
         "user_id": "test_user"
     }
