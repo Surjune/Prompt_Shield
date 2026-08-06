@@ -3,11 +3,16 @@
 <head>
   <meta charset="utf-8"/>
   <style>
-    body { width: 280px; font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 16px; }
+    body { width: 300px; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 16px; }
     .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 12px; }
     .title { font-size: 14px; font-weight: 700; color: #38bdf8; }
     .status-indicator { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; }
-    .stat-box { background: #1e293b; border-radius: 8px; padding: 10px; margin-bottom: 8px; display: flex; justify-content: space-between; font-size: 12px; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; background: #1e293b; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; border: 1px solid #334155; }
+    .toggle-label { font-size: 13px; font-weight: 600; }
+    .btn-toggle { padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; }
+    .btn-on { background: #0284c7; color: white; }
+    .btn-off { background: #475569; color: #cbd5e1; }
+    .stat-box { background: #1e293b; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; display: flex; justify-content: space-between; font-size: 12px; }
     .stat-label { color: #94a3b8; }
     .stat-val { font-weight: 700; color: #f8fafc; }
     .footer { margin-top: 12px; font-size: 11px; text-align: center; color: #64748b; }
@@ -15,15 +20,21 @@
 </head>
 <body>
   <div class="header">
-    <div class="title">ASIPE Security</div>
+    <div class="title">ASIPE Protection Engine</div>
     <div id="status-dot" class="status-indicator"></div>
   </div>
+
+  <div class="toggle-row">
+    <span class="toggle-label">Real-Time Interception:</span>
+    <button id="toggle-btn" class="btn-toggle btn-on">ACTIVE</button>
+  </div>
+
   <div class="stat-box">
-    <span class="stat-label">Engine API:</span>
-    <span id="backend-status" class="stat-val">Connecting...</span>
+    <span class="stat-label">Backend Engine API:</span>
+    <span id="backend-status" class="stat-val">Checking...</span>
   </div>
   <div class="stat-box">
-    <span class="stat-label">Total Scans:</span>
+    <span class="stat-label">Total Prompts Scanned:</span>
     <span id="scanned-count" class="stat-val">0</span>
   </div>
   <div class="stat-box">
@@ -31,7 +42,7 @@
     <span id="blocked-count" class="stat-val" style="color: #ef4444;">0</span>
   </div>
   <div class="stat-box">
-    <span class="stat-label">Redacted Prompts:</span>
+    <span class="stat-label">Redacted Data Leaks:</span>
     <span id="redacted-count" class="stat-val" style="color: #eab308;">0</span>
   </div>
   <div class="footer">AI Security Interceptor & Policy Engine v1.0</div>

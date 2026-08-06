@@ -2,132 +2,118 @@ class ASIPEDOMInterceptor {
   constructor(onPromptSubmit) {
     this.onPromptSubmit = onPromptSubmit;
     this.isInteracting = false;
-    this.targetSelectors = [
-      '#prompt-textarea',                           // ChatGPT textarea
-      'button[data-testid="send-button"]',          // ChatGPT send button
-      'div[contenteditable="true"]',               // Gemini / Claude editable containers
-      'button[aria-label*="Send"]',                 // Generic / Gemini send button
-      'button[aria-label*="Submit"]'
-    ];
-    this.initObserver();
-    this.initNativeFetchOverride();
+    this.injectMainWorldInterceptor();
+    this.bindSubmitEventCapture();
   }
 
-  initObserver() {
-    this.attachListeners();
-    const observer = new MutationObserver(() => this.attachListeners());
-    observer.observe(document.body, { childList: true, subtree: true });
+  injectMainWorldInterceptor() {
+    try {
+      if (document.getElementById("asipe-injected-script")) return;
+      const script = document.createElement("script");
+      script.id = "asipe-injected-script";
+      script.src = chrome.runtime.getURL("injected_interceptor.js");
+      script.onload = () => script.remove();
+      (document.head || document.documentElement).appendChild(script);
+      console.log("[ASIPE ContentScript] Injected main-world active network interceptor.");
+    } catch (e) {
+      console.error("[ASIPE ContentScript] Script injection failed:", e);
+    }
   }
 
-  attachListeners() {
-    // 1. Textarea & Contenteditable Enter key interceptor (useCapture: true)
-    const inputs = document.querySelectorAll('#prompt-textarea, div[contenteditable="true"], textarea');
-    inputs.forEach(input => {
-      if (!input.dataset.asipeBound) {
-        input.dataset.asipeBound = "true";
-        input.addEventListener('keydown', (e) => this.handleKeyDown(e, input), true);
-      }
-    });
+  // Bind capture phase listeners strictly to active submission events
+  bindSubmitEventCapture() {
+    const handleCapture = async (event) => {
+      // 1. Must be an active submission event (Enter keypress without Shift or Click on Send button)
+      const isSendButton = this.isSendButtonElement(event.target);
+      const isEnterKey = (event.type === 'keydown' || event.type === 'keyup') && event.key === 'Enter' && !event.shiftKey;
 
-    // 2. Send button click interceptor (useCapture: true)
-    const buttons = document.querySelectorAll('button[data-testid="send-button"], button[aria-label*="Send"], button[type="submit"]');
-    buttons.forEach(btn => {
-      if (!btn.dataset.asipeBound) {
-        btn.dataset.asipeBound = "true";
-        btn.addEventListener('click', (e) => this.handleButtonClick(e), true);
-      }
-    });
-  }
+      if (!isSendButton && !isEnterKey) return;
 
-  async handleKeyDown(event, inputElement) {
-    if (event.key === 'Enter' && !event.shiftKey && !this.isInteracting) {
-      const text = this.extractText(inputElement);
-      if (!text.trim()) return;
+      // 2. Locate ONLY the active input field (ignoring historical chat messages)
+      const activeInputElem = this.findActiveInputElement(event.target);
+      if (!activeInputElem) return;
 
-      // Intercept event synchronously at capture phase
+      const promptText = this.extractText(activeInputElem);
+      if (!promptText || !promptText.trim()) return;
+
+      // Halt propagation to prevent synthetic delegation
       event.preventDefault();
       event.stopImmediatePropagation();
 
+      if (this.isInteracting) return;
       this.isInteracting = true;
-      const decision = await this.onPromptSubmit(text, this.detectPlatform());
+
+      console.log("[ASIPE DOMInterceptor] Active submission intercepted:", event.type);
+      const decision = await this.onPromptSubmit(promptText, this.detectPlatform());
       this.isInteracting = false;
 
       if (decision.action === "ALLOW") {
-        this.releaseSubmission(inputElement);
+        this.releaseNativeSubmit(activeInputElem, isEnterKey);
       } else if (decision.action === "REDACT" && decision.sanitized_prompt) {
-        this.updateInputText(inputElement, decision.sanitized_prompt);
-        this.releaseSubmission(inputElement);
+        this.updateInputText(activeInputElem, decision.sanitized_prompt);
+        this.releaseNativeSubmit(activeInputElem, isEnterKey);
       }
-    }
+    };
+
+    ['keydown', 'click', 'pointerdown', 'submit'].forEach(eventType => {
+      window.addEventListener(eventType, handleCapture, true);
+    });
   }
 
-  async handleButtonClick(event) {
-    if (this.isInteracting) return;
-    const inputElement = document.querySelector('#prompt-textarea, div[contenteditable="true"], textarea');
-    if (!inputElement) return;
+  // Strict query targeting ONLY active prompt entry containers
+  findActiveInputElement(target) {
+    if (this.isActiveInputField(target)) return target;
+    return document.querySelector(
+      '#prompt-textarea, rich-textarea div[contenteditable="true"], rich-textarea p, textarea, div[aria-label*="Enter a prompt"]'
+    );
+  }
 
-    const text = this.extractText(inputElement);
-    if (!text.trim()) return;
+  isActiveInputField(el) {
+    if (!el) return false;
+    const tag = el.tagName ? el.tagName.toLowerCase() : "";
+    return tag === "textarea" || tag === "rich-textarea" || el.isContentEditable || el.id === "prompt-textarea";
+  }
 
-    event.preventDefault();
-    event.stopImmediatePropagation();
-
-    this.isInteracting = true;
-    const decision = await this.onPromptSubmit(text, this.detectPlatform());
-    this.isInteracting = false;
-
-    if (decision.action === "ALLOW") {
-      this.releaseButtonSubmit(event.currentTarget);
-    } else if (decision.action === "REDACT" && decision.sanitized_prompt) {
-      this.updateInputText(inputElement, decision.sanitized_prompt);
-      this.releaseButtonSubmit(event.currentTarget);
-    }
+  isSendButtonElement(el) {
+    if (!el) return false;
+    const attr = (el.getAttribute && el.getAttribute('data-testid')) || '';
+    const aria = (el.getAttribute && el.getAttribute('aria-label')) || '';
+    return attr.includes('send') || aria.toLowerCase().includes('send') || (el.closest && el.closest('button[data-testid="send-button"], button[aria-label*="Send"]'));
   }
 
   extractText(element) {
+    if (!element) return "";
     return element.value !== undefined ? element.value : (element.innerText || element.textContent || "");
   }
 
   updateInputText(element, newText) {
+    if (!element) return;
     if (element.value !== undefined) {
       element.value = newText;
     } else {
       element.innerText = newText;
     }
     element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  releaseSubmission(inputElement) {
-    const enterEvent = new KeyboardEvent('keydown', {
-      key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true
-    });
-    inputElement.dispatchEvent(enterEvent);
-  }
-
-  releaseButtonSubmit(buttonElement) {
-    buttonElement.click();
+  releaseNativeSubmit(inputElement, isEnterKey) {
+    if (isEnterKey) {
+      const enterEvent = new KeyboardEvent('keydown', {
+        key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true
+      });
+      inputElement.dispatchEvent(enterEvent);
+    } else {
+      const btn = document.querySelector('button[aria-label*="Send"], button[data-testid="send-button"]');
+      if (btn) btn.click();
+    }
   }
 
   detectPlatform() {
     const host = window.location.hostname;
-    if (host.includes("gemini")) return "Gemini";
+    if (host.includes("gemini") || host.includes("google")) return "Gemini";
     if (host.includes("openai") || host.includes("chatgpt")) return "ChatGPT";
-    return "Unknown AI Platform";
-  }
-
-  initNativeFetchOverride() {
-    // Native fetch monkey-patching for additional network-layer resilience
-    const originalFetch = window.fetch;
-    const self = this;
-
-    window.fetch = async function (...args) {
-      const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : "");
-      if (url.includes("/backend-api/conversation") || url.includes("GenerateContent")) {
-        // Platform backend API call detected
-        console.log("[ASIPE Interceptor] Pre-flight fetch request monitored:", url);
-      }
-      return originalFetch.apply(this, args);
-    };
+    return "AI Platform";
   }
 }
 

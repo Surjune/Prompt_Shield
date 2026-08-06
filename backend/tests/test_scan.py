@@ -1,7 +1,13 @@
+import os
 import pytest
 from fastapi.testclient import TestClient
-from backend.main import app
 from backend.config import settings
+
+# Force isolated test database
+os.environ["DATABASE_URL"] = "sqlite:///./test_asipe.db"
+settings.DATABASE_URL = "sqlite:///./test_asipe.db"
+
+from backend.main import app
 
 client = TestClient(app)
 

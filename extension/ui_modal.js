@@ -33,7 +33,15 @@ class ASIPEUIModal {
       .asipe-btn-close { background: #dc2626; color: white; }
       .asipe-btn-close:hover { background: #b91c1c; }
     `;
-    document.head.appendChild(style);
+
+    const target = document.head || document.documentElement;
+    if (target) {
+      target.appendChild(style);
+    } else {
+      document.addEventListener("DOMContentLoaded", () => {
+        (document.head || document.documentElement).appendChild(style);
+      });
+    }
   }
 
   showBlockModal(violations, riskScore, onDismiss) {
@@ -67,12 +75,16 @@ class ASIPEUIModal {
       </div>
     `;
 
-    document.body.appendChild(overlay);
+    const container = document.body || document.documentElement;
+    container.appendChild(overlay);
 
-    document.getElementById("asipe-close-btn").addEventListener("click", () => {
-      this.closeModal();
-      if (onDismiss) onDismiss();
-    });
+    const closeBtn = document.getElementById("asipe-close-btn");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => {
+        this.closeModal();
+        if (onDismiss) onDismiss();
+      });
+    }
   }
 
   closeModal() {
