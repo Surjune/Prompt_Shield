@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import hashlib
 import json
 from typing import List, Optional
@@ -30,6 +31,7 @@ def log_audit_event(
     violations_serialized = json.dumps([v.model_dump() for v in violations])
 
     log_entry = AuditLog(
+        timestamp=datetime.now(timezone.utc),
         user_id=user_id,
         platform=platform,
         prompt_hash=prompt_hash,
@@ -43,3 +45,4 @@ def log_audit_event(
     db.commit()
     db.refresh(log_entry)
     return log_entry
+

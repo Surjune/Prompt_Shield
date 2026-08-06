@@ -12,6 +12,17 @@ export default function ThreatFeed({ logs = [], error = null, loading = false })
     }
   };
 
+  const formatTimestamp = (ts) => {
+    if (!ts) return "N/A";
+    let str = String(ts);
+    if (!str.endsWith("Z") && !str.includes("+") && !str.includes("-", 10)) {
+      str += "Z";
+    }
+    const date = new Date(str);
+    if (isNaN(date.getTime())) return String(ts);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
   return (
     <div style={{ background: "#1e293b", borderRadius: "12px", border: "1px solid #334155", overflow: "hidden" }}>
       <div style={{ padding: "16px 20px", borderBottom: "1px solid #334155", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -57,7 +68,7 @@ export default function ThreatFeed({ logs = [], error = null, loading = false })
                   return (
                     <tr key={log.id} style={{ borderBottom: "1px solid #334155", color: "#cbd5e1" }}>
                       <td style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
-                        {new Date(log.timestamp).toLocaleTimeString()}
+                        {formatTimestamp(log.timestamp)}
                       </td>
                       <td style={{ padding: "12px 16px", fontWeight: "600" }}>{log.platform}</td>
                       <td style={{ padding: "12px 16px" }}>

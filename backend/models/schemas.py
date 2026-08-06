@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 class PromptScanRequest(BaseModel):
     prompt: str = Field(..., description="Raw text prompt to analyze")
@@ -50,5 +50,12 @@ class AuditLogDTO(BaseModel):
     action: str
     violations_json: str
 
+    @field_validator('timestamp', mode='after')
+    def ensure_utc_tz(cls, v: datetime) -> datetime:
+        if v and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
+
     class Config:
         from_attributes = True
+
