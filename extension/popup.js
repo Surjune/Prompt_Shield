@@ -6,6 +6,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const backendLabel = document.getElementById("backend-status");
   const statusDot = document.getElementById("status-dot");
 
+  let isHealthCheckInFlight = false;
+
   function refreshStatsUI() {
     chrome.storage.local.get(["isMonitoringEnabled", "asipe_enabled", "total_scanned", "total_blocked", "total_redacted"], (res) => {
       const isEnabled = res.isMonitoringEnabled !== undefined ? res.isMonitoringEnabled : (res.asipe_enabled !== undefined ? res.asipe_enabled : true);
@@ -16,7 +18,12 @@ document.addEventListener("DOMContentLoaded", () => {
       redactedLabel.textContent = res.total_redacted || 0;
     });
 
+    // Guard: skip health check if previous request is still in-flight (prevents request pileup when backend is offline)
+    if (isHealthCheckInFlight) return;
+    isHealthCheckInFlight = true;
+
     chrome.runtime.sendMessage({ type: "CHECK_HEALTH" }, (response) => {
+      isHealthCheckInFlight = false;
       if (chrome.runtime.lastError) return;
       if (response && response.success && response.data) {
         statusDot.style.background = "#22c55e";
@@ -63,6 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initial load + 1000ms polling for instant UI counter updates
   refreshStatsUI();
-  const pollTimer = setInterval(refreshStatsUI, 1000);
+  // Poll every 2500ms (slightly beyond 2000ms fetch timeout) to prevent request pileup
+  const pollTimer = setInterval(refreshStatsUI, 2500);
   window.addEventListener("unload", () => clearInterval(pollTimer));
 });

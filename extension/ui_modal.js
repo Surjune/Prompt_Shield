@@ -4,6 +4,34 @@ class ASIPEUIModal {
     this.injectStyles();
   }
 
+  // For <style> / <link> elements that belong in <head>
+  safeAppendToHead(element) {
+    if (!element) return;
+    const target = document.head || document.documentElement;
+    if (target) {
+      target.appendChild(element);
+    } else {
+      document.addEventListener("DOMContentLoaded", () => {
+        const deferredTarget = document.head || document.documentElement;
+        if (deferredTarget) deferredTarget.appendChild(element);
+      }, { once: true });
+    }
+  }
+
+  // For visible <div> overlays that must be in <body>
+  safeAppendToBody(element) {
+    if (!element) return;
+    const target = document.body || document.documentElement;
+    if (target) {
+      target.appendChild(element);
+    } else {
+      document.addEventListener("DOMContentLoaded", () => {
+        const deferredTarget = document.body || document.documentElement;
+        if (deferredTarget) deferredTarget.appendChild(element);
+      }, { once: true });
+    }
+  }
+
   injectStyles() {
     if (document.getElementById("asipe-styles")) return;
     const style = document.createElement("style");
@@ -33,15 +61,7 @@ class ASIPEUIModal {
       .asipe-btn-close { background: #dc2626; color: white; }
       .asipe-btn-close:hover { background: #b91c1c; }
     `;
-
-    const target = document.head || document.documentElement;
-    if (target) {
-      target.appendChild(style);
-    } else {
-      document.addEventListener("DOMContentLoaded", () => {
-        (document.head || document.documentElement).appendChild(style);
-      });
-    }
+    this.safeAppendToHead(style);
   }
 
   showBlockModal(violations, riskScore, onDismiss) {
@@ -75,8 +95,7 @@ class ASIPEUIModal {
       </div>
     `;
 
-    const container = document.body || document.documentElement;
-    container.appendChild(overlay);
+    this.safeAppendToBody(overlay);
 
     const closeBtn = document.getElementById("asipe-close-btn");
     if (closeBtn) {
